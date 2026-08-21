@@ -78,6 +78,29 @@ namespace dotnetCampus.Ipc.Context
         public IIpcClientPipeConnector? IpcClientPipeConnector { set; get; }
 
         /// <summary>
+        /// 当有客户端连接到服务端管道时触发。
+        /// 可在事件中检查 <see cref="NamedPipeClientConnectingEventArgs.ClientProcessId"/> 并通过
+        /// <see cref="NamedPipeClientConnectingEventArgs.AllowConnection"/> 控制是否允许连接。
+        /// </summary>
+        public event EventHandler<NamedPipeClientConnectingEventArgs>? NamedPipeClientConnecting;
+
+        /// <summary>
+        /// 供框架内部调用，触发客户端连接验证事件。
+        /// </summary>
+        internal bool ValidateNamedPipeClientConnection(string pipeName, int? clientProcessId)
+        {
+            var handler = NamedPipeClientConnecting;
+            if (handler is null)
+            {
+                return true;
+            }
+
+            var args = new NamedPipeClientConnectingEventArgs(pipeName, clientProcessId);
+            handler(this, args);
+            return args.AllowConnection;
+        }
+
+        /// <summary>
         /// 提供给框架调用，用于注入框架特殊处理的请求处理器。
         /// </summary>
         /// <param name="handlers">框架特殊处理的请求处理器。</param>

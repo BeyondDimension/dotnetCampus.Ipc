@@ -64,6 +64,24 @@ namespace dotnetCampus.Ipc.Pipes
                 }
                 pipeServerMessage.PeerConnectBroke += PipeServerMessage_PeerConnectBroke;
                 await pipeServerMessage.Start().ConfigureAwait(false);
+
+                // 如果连接在协议层前被拒绝，Start 会直接返回且不会触发 PeerConnectBroke，
+                // 这里主动移除并释放，避免对象堆积。
+                if (!pipeServerMessage.IsPeerConnected)
+                {
+                    lock (IpcPipeServerMessageProviderList)
+                    {
+                        IpcPipeServerMessageProviderList.Remove(pipeServerMessage);
+                    }
+
+                    try
+                    {
+                        pipeServerMessage.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
             }
         }
 

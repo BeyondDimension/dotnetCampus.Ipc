@@ -70,6 +70,40 @@ namespace dotnetCampus.Ipc.Internals
                 // 日志在 Dispose 方法里记。
                 return;
             }
+
+            // 在进入 IPC 协议层之前，先让调用方验证客户端进程是否允许连接。
+            // 验证失败则主动断开。
+            try
+            {
+                int? clientProcessId = null;
+                if (TryGetNamedPipeClientProcessId(namedPipeServerStream, out var processId))
+                {
+                    clientProcessId = processId;
+                }
+
+                var isAllow = IpcContext.IpcConfiguration
+                    .ValidateNamedPipeClientConnection(PipeName, clientProcessId);
+
+                if (!isAllow)
+                {
+                    if (namedPipeServerStream.IsConnected)
+                    {
+                        namedPipeServerStream.Disconnect();
+                    }
+                    namedPipeServerStream.Dispose();
+                    return;
+                }
+            }
+            catch
+            {
+                // 验证过程异常，按拒绝处理
+                if (namedPipeServerStream.IsConnected)
+                {
+                    namedPipeServerStream.Disconnect();
+                }
+                namedPipeServerStream.Dispose();
+                return;
+            }
             //var streamMessageConverter = new StreamMessageConverter(namedPipeServerStream,
             //    IpcConfiguration.MessageHeader, IpcConfiguration.SharedArrayPool);
             //streamMessageConverter.MessageReceived += OnClientConnectReceived;
@@ -101,9 +135,9 @@ namespace dotnetCampus.Ipc.Internals
 #if NETCOREAPP
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // 用来在 Windows 下，混用管理员权限和非管理员权限的管道
+                // 仅允许管理员用户连接管道，避免管理员与非管理员进程混用同一管道
                 SecurityIdentifier securityIdentifier = new SecurityIdentifier(
-                    WellKnownSidType.AuthenticatedUserSid, null);
+                    WellKnownSidType.BuiltinAdministratorsSid, null);
 
                 PipeSecurity pipeSecurity = new PipeSecurity();
                 pipeSecurity.AddAccessRule(new PipeAccessRule(securityIdentifier,
@@ -156,8 +190,9 @@ namespace dotnetCampus.Ipc.Internals
 
 #elif NETFRAMEWORK
             // .Net Framework 就不再判断 Windows 了
+            // 仅允许管理员用户连接管道，避免管理员与非管理员进程混用同一管道
             SecurityIdentifier securityIdentifier = new SecurityIdentifier(
-                WellKnownSidType.AuthenticatedUserSid, null);
+                WellKnownSidType.BuiltinAdministratorsSid, null);
 
             PipeSecurity pipeSecurity = new PipeSecurity();
             pipeSecurity.AddAccessRule(new PipeAccessRule(securityIdentifier,
@@ -205,6 +240,7 @@ namespace dotnetCampus.Ipc.Internals
         }
         */
         private ServerStreamMessageReader? ServerStreamMessageReader { set; get; }
+        internal bool IsPeerConnected => ServerStreamMessageReader is not null;
         public event EventHandler<IpcPipeServerMessageProviderPeerConnectionBrokenArgs>? PeerConnectBroke;
 
         /*
@@ -328,5 +364,26 @@ namespace dotnetCampus.Ipc.Internals
             }
         }
 #endif
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetNamedPipeClientProcessId(IntPtr pipe, out uint clientProcessId);
+
+        private static bool TryGetNamedPipeClientProcessId(NamedPipeServerStream stream, out int processId)
+        {
+            processId = 0;
+            try
+            {
+                if (GetNamedPipeClientProcessId(stream.SafePipeHandle.DangerousGetHandle(), out var pid))
+                {
+                    processId = unchecked((int) pid);
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
     }
 }
