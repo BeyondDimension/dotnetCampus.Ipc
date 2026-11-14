@@ -135,12 +135,16 @@ namespace dotnetCampus.Ipc.Internals
 #if NETCOREAPP
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // 仅允许管理员用户连接管道，避免管理员与非管理员进程混用同一管道
-                SecurityIdentifier securityIdentifier = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinAdministratorsSid, null);
-
+                // Permit this user across UAC elevation levels, while retaining administrator access.
+                // The configured peer-process validator still authenticates every connection.
+                using var identity = WindowsIdentity.GetCurrent();
+                var user = identity.User ?? throw new InvalidOperationException("The current Windows user SID is unavailable.");
                 PipeSecurity pipeSecurity = new PipeSecurity();
-                pipeSecurity.AddAccessRule(new PipeAccessRule(securityIdentifier,
+                pipeSecurity.AddAccessRule(new PipeAccessRule(user,
+                    PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
+                    AccessControlType.Allow));
+                pipeSecurity.AddAccessRule(new PipeAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
                     PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
                     AccessControlType.Allow));
 
@@ -190,12 +194,14 @@ namespace dotnetCampus.Ipc.Internals
 
 #elif NETFRAMEWORK
             // .Net Framework 就不再判断 Windows 了
-            // 仅允许管理员用户连接管道，避免管理员与非管理员进程混用同一管道
-            SecurityIdentifier securityIdentifier = new SecurityIdentifier(
-                WellKnownSidType.BuiltinAdministratorsSid, null);
-
+            using var identity = WindowsIdentity.GetCurrent();
+            var user = identity.User ?? throw new InvalidOperationException("The current Windows user SID is unavailable.");
             PipeSecurity pipeSecurity = new PipeSecurity();
-            pipeSecurity.AddAccessRule(new PipeAccessRule(securityIdentifier,
+            pipeSecurity.AddAccessRule(new PipeAccessRule(user,
+                PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
+                AccessControlType.Allow));
+            pipeSecurity.AddAccessRule(new PipeAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
                 PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
                 AccessControlType.Allow));
 

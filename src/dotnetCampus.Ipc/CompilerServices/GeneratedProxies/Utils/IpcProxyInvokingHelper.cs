@@ -132,7 +132,7 @@ internal class IpcProxyInvokingHelper
             // 如果此参数只是一个普通对象。
             return new GeneratedProxyObjectModel
             {
-                Value = IpcJsonElement.Serialize(argModel.Value, Context.ObjectSerializer),
+                Value = IpcJsonElement.Serialize(argModel.Value, Context.ObjectSerializer, argModel.ValueType),
             };
         }
     }
