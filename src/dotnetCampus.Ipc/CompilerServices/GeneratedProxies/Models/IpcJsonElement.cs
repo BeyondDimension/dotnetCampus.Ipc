@@ -103,6 +103,16 @@ public readonly record struct IpcJsonElement
         };
     }
 
+    /// <summary>Serializes a value using its declared contract when generated metadata is required.</summary>
+    public static IpcJsonElement Serialize(object? value, IIpcObjectSerializer serializer, Type contractType)
+    {
+#if NET6_0_OR_GREATER
+        if (serializer is GeneratedIpcJsonSerializer generated)
+            return generated.SerializeToElement(value, contractType);
+#endif
+        return Serialize(value, serializer);
+    }
+
     /// <summary>
     /// 将 IPC 可传输的 JSON 对象反序列化成本地对象。
     /// </summary>

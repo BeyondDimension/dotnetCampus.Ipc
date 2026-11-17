@@ -138,6 +138,11 @@ namespace dotnetCampus.Ipc.Context
         {
 #if UseNewtonsoftJson
             get => _ipcObjectSerializer ??= DefaultNewtonsoftJsonSerializer;
+#elif NET8_0_OR_GREATER
+            // Native AOT disables reflection serialization; keep the reflection serializer out of its reachable graph.
+            get => _ipcObjectSerializer ?? (System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault
+                ? DefaultSystemTextJsonIpcObjectSerializer
+                : GeneratedIpcJsonSerializer.Instance);
 #elif NET6_0_OR_GREATER
             get => _ipcObjectSerializer ?? DefaultSystemTextJsonIpcObjectSerializer;
 #endif

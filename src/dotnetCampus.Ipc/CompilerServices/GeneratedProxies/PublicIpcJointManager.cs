@@ -216,7 +216,7 @@ public class PublicIpcJointManager
         else
         {
             // 如果是一个普通对象。
-            return new GeneratedProxyMemberReturnModel(IpcJsonElement.Serialize(returnModel.Value, Context.ObjectSerializer));
+            return new GeneratedProxyMemberReturnModel(IpcJsonElement.Serialize(returnModel.Value, Context.ObjectSerializer, returnModel.ValueType));
         }
     }
 
